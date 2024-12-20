@@ -28,8 +28,11 @@ export type Task = {
   expirationTime: number; // 任务过期时间
 };
 
-// 任务池，最小堆结构
+// 任务池，最小堆结构，没有延迟的任务
 const taskQueue: Array<Task> = [];
+// 有延迟的任务
+const timerQueue: Array<Task> = [];
+
 // 任务id
 let taskIdCounter: number = 1;
 // 当前任务
@@ -41,9 +44,34 @@ let isHostCallbackScheduled: boolean = false;
 // 是否在任务调度
 let isMessageLoopRunning: boolean = false;
 
+// 是否有任务在倒计时
+let isHostTimeoutScheduled: boolean = false;
+
+let taskTimeoutId: number = -1;
+
 // 任务调度器入口
-function scheduleCallback(priorityLevel: PriorityLevel, callback: Callback) {
-  const startTime = getCurrentTime();
+function scheduleCallback(
+  priorityLevel: PriorityLevel,
+  callback: Callback,
+  options?: {
+    delay: number;
+  }
+) {
+  let startTime;
+  const currentTime = getCurrentTime();
+  if (typeof options === "object" && options !== null) {
+    const delay = options.delay;
+    if (typeof delay === "number" && delay > 0) {
+      // 有延迟的任务
+      startTime = currentTime + delay;
+    } else {
+      // 没有延迟的任务
+      startTime = currentTime;
+    }
+  } else {
+    // 没有延迟的任务
+    startTime = currentTime;
+  }
 
   let timeout: number;
 
@@ -77,13 +105,31 @@ function scheduleCallback(priorityLevel: PriorityLevel, callback: Callback) {
     expirationTime,
   };
 
-  newTask.sortIndex = expirationTime; // 任务排序依据, 时间越短，优先级越高
-  // 把任务放到任务池中
-  push(taskQueue, newTask);
-  if (!isHostCallbackScheduled) {
-    isHostCallbackScheduled = true;
-    // 执行任务
-    requestHostCallback();
+  if (startTime > currentTime) {
+    // 有延迟的任务
+    newTask.sortIndex = startTime; // 以开始时间排序
+    push(timerQueue, newTask); // 把任务放到任务池中 timerQueue，到时候再把任务放到任务池中taskQueue中
+
+    // 每次只倒计时一个任务
+    if (peek(taskQueue) === null && newTask === peek(timerQueue)) {
+      if (isHostTimeoutScheduled) {
+        // newTask 才是堆顶任务，优先执行
+        cancelHostTimeout();
+      } else {
+        // 倒计时
+        isHostTimeoutScheduled = true;
+      }
+      requestHostTimeout(handleTimeout, startTime - currentTime);
+    }
+  } else {
+    newTask.sortIndex = expirationTime; // 任务排序依据, 时间越短，优先级越高
+    // 把任务放到任务池中
+    push(taskQueue, newTask);
+    if (!isHostCallbackScheduled) {
+      isHostCallbackScheduled = true;
+      // 执行任务
+      requestHostCallback();
+    }
   }
 }
 
@@ -173,6 +219,7 @@ function shouldYieldToHost() {
 // 时间切片要循环，就是work要循环
 function wookLoop(initialTime: number): boolean {
   let currentTime = initialTime;
+  advanceTimers(currentTime);
   currentTask = peek(taskQueue);
 
   while (currentTask !== null) {
@@ -187,10 +234,11 @@ function wookLoop(initialTime: number): boolean {
       currentPriorityLevel = currentTask.priorityLevel; // 当前任务优先级
       const didUserCallbackTimeout = currentTask.expirationTime <= currentTime; // 任务是否过期
       const continuationCallback = callback(didUserCallbackTimeout); // 执行任务，没有执行完
-
+      currentTime = getCurrentTime();
       if (typeof continuationCallback === "function") {
         // 任务执行完了，但是还有任务，继续执行
         currentTask.callback = continuationCallback;
+        advanceTimers(currentTime);
         return true;
       } else {
         // 如果是堆顶任务，则可以直接删除
@@ -198,6 +246,7 @@ function wookLoop(initialTime: number): boolean {
           // 任务执行完了，从任务池中删除
           pop(taskQueue);
         }
+        advanceTimers(currentTime);
       }
     } else {
       // 任务执行完了，从任务池中删除
@@ -209,7 +258,61 @@ function wookLoop(initialTime: number): boolean {
   if (currentTask !== null) {
     return true;
   } else {
+    const firstTimer = peek(timerQueue);
+    if (firstTimer !== null) {
+      requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+    }
     return false;
+  }
+}
+
+function requestHostTimeout(
+  callback: (currentTime: number) => void,
+  ms: number
+) {
+  taskTimeoutId = setTimeout(() => {
+    callback(getCurrentTime());
+  }, ms);
+}
+// delay任务处理逻辑
+function cancelHostTimeout() {
+  clearTimeout(taskTimeoutId);
+  taskTimeoutId = -1;
+}
+
+function advanceTimers(currentTime: number) {
+  let timer = peek(timerQueue);
+  while (timer !== null) {
+    if (timer.callback === null) {
+      // 无效的任务
+      pop(timerQueue);
+    } else if (timer.startTime <= currentTime) {
+      // 有效的任务
+      pop(timerQueue);
+      timer.sortIndex = timer.expirationTime;
+      push(taskQueue, timer);
+    } else {
+      // 有效的任务
+      break;
+    }
+    timer = peek(timerQueue);
+  }
+}
+function handleTimeout(currentTime: number) {
+  isHostTimeoutScheduled = false;
+  // 把延迟任务从timerQueue中推入taskQueue中
+  advanceTimers(currentTime);
+
+  if (!isHostCallbackScheduled) {
+    if (peek(taskQueue) !== null) {
+      isHostCallbackScheduled = true;
+      requestHostCallback();
+    } else {
+      const firstTimer = peek(timerQueue);
+      if (firstTimer !== null) {
+        requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
+      }
+    }
   }
 }
 
