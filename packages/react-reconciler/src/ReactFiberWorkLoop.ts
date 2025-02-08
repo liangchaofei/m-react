@@ -2,6 +2,12 @@ import type { Fiber, FiberRoot } from "./ReactInternalTypes";
 import { ensureRootIsScheduled } from "./ReactFiberRootScheduler";
 import { createWorkInProgress } from "./ReactFiber";
 import { beginWork } from "./ReactFiberBeginWork";
+import {
+  commitMutationEffects,
+  flushPassiveEffects,
+} from "./ReactFiberCommitWork";
+import { Scheduler } from "scheduler";
+import { NormalPriority } from "scheduler/src/SchedulerPriorities";
 import { completeWork } from "./ReactFiberCompleteWork";
 
 type ExecutionContext = number;
@@ -28,8 +34,11 @@ export function performConcurrentWorkOnRoot(root: FiberRoot) {
   // 开始调度工作
   // 1. render, 构建fiber树vdom
   renderRootSync(root);
+  console.log("root", root);
+  const finishedWork = root.current.alternate;
+  root.finishedWork = finishedWork; // 根Fiber
   // 2. commit, vdom -> dom
-  // commitRoot(root); // 提交
+  commitRoot(root); // 提交
 }
 
 function renderRootSync(root: FiberRoot) {
@@ -41,6 +50,23 @@ function renderRootSync(root: FiberRoot) {
   // ! 3. 递归构建fiber树
   workLoopSync();
   // ! 4. render 阶段结束
+  executionContext = prevExecutionContext;
+  workInProgressRoot = null;
+}
+
+function commitRoot(root: FiberRoot) {
+  // !1. commit 阶段开始
+  const prevExecutionContext = executionContext;
+  executionContext |= CommitContext;
+
+  // !2.1 mutation阶段, 渲染DOM树
+  commitMutationEffects(root, root.finishedWork as Fiber); //Fiber,HostRoot=3
+  // !2.2 passive effect阶段，执行 passive effect
+  Scheduler.scheduleCallback(NormalPriority, () => {
+    flushPassiveEffects(root.finishedWork as Fiber);
+  });
+
+  // !3. commit结束
   executionContext = prevExecutionContext;
   workInProgressRoot = null;
 }
