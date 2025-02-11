@@ -57,7 +57,7 @@ function reconcileChildren(
 ) {
   // 初次挂载
   if (current === null) {
-    console.log("workInProgress", workInProgress);
+    console.log("workInProgress fff", workInProgress);
     workInProgress.child = mountChildFibers(workInProgress, null, nextChildren);
   } else {
     console.log("workInProgress  aaa", workInProgress);

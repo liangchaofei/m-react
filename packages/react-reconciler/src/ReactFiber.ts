@@ -82,9 +82,12 @@ export function createFiberFromTypeAndProps(
 }
 
 export function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
+  console.log("current33", current);
   let workInProgress = current.alternate;
+  console.log("workInProgress", workInProgress);
 
   if (workInProgress === null) {
+    console.log("aaasss");
     workInProgress = createFiber(current.tag, pendingProps, current.key);
     workInProgress.elementType = current.elementType;
     workInProgress.type = current.type;
@@ -92,6 +95,7 @@ export function createWorkInProgress(current: Fiber, pendingProps: any): Fiber {
     workInProgress.alternate = current;
     current.alternate = workInProgress;
   } else {
+    console.log("bbb");
     workInProgress.pendingProps = pendingProps;
     workInProgress.flags = NoFlags;
     workInProgress.type = current.type;
