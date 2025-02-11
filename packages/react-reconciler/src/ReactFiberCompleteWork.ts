@@ -29,6 +29,10 @@ export function completeWork(
       // updateFiberProps(workInProgress.stateNode, newProps);
       return null;
     }
+    case HostText: {
+      workInProgress.stateNode = document.createTextNode(newProps);
+      return null;
+    }
   }
 
   throw new Error(
