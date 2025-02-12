@@ -3,11 +3,15 @@ import {
   WorkTag,
   HostComponent,
   HostText,
+  Fragment,
+  ClassComponent,
+  FunctionComponent,
 } from "./ReactWorkTags";
 import type { Fiber } from "./ReactInternalTypes";
 import { NoFlags } from "./ReactFiberFlags";
 import type { ReactElement } from "shared/ReactTypes";
 import { isFn, isStr } from "shared/utils";
+import { REACT_FRAGMENT_TYPE } from "shared/ReactSymbols";
 // 创建一个fiber
 export function createFiber(
   tag: WorkTag,
@@ -71,9 +75,19 @@ export function createFiberFromTypeAndProps(
 ) {
   let fiberTag: WorkTag = IndeterminateComponent;
 
-  if (isStr(type)) {
+  if (isFn(type)) {
+    // 函数组件、类组件
+    if (type.prototype.isReactComponent) {
+      fiberTag = ClassComponent;
+    } else {
+      fiberTag = FunctionComponent;
+    }
+  } else if (isStr(type)) {
     // 原生标签
     fiberTag = HostComponent;
+  } else if (type === REACT_FRAGMENT_TYPE) {
+    // Fragment
+    fiberTag = Fragment;
   }
 
   const fiber = createFiber(fiberTag, pendingProps, key);

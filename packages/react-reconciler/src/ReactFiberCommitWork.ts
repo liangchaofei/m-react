@@ -44,6 +44,13 @@ function commitPlacement(finishedWork: Fiber) {
     // 遍历fiber，寻找finishedWork的兄弟节点，并且这个sibling有dom节点，且是更新的节点。在本轮不发生移动
     const before = getHostSibling(finishedWork);
     insertOrAppendPlacementNode(finishedWork, before, parentDom);
+  } else {
+    // Fragment
+    let kid = finishedWork.child;
+    while (kid !== null) {
+      commitPlacement(kid);
+      kid = kid.sibling;
+    }
   }
 }
 function getHostSibling(fiber: Fiber) {

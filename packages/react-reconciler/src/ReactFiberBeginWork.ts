@@ -1,7 +1,15 @@
 import type { Fiber } from "./ReactInternalTypes";
-import { HostRoot, HostComponent, HostText } from "./ReactWorkTags";
+import {
+  HostRoot,
+  HostComponent,
+  HostText,
+  Fragment,
+  ClassComponent,
+  FunctionComponent,
+} from "./ReactWorkTags";
 import { mountChildFibers, reconcileChildFibers } from "./ReactChildFiber";
 import { isNum, isStr } from "shared/utils";
+import { readContext } from "./ReactFiberNewContext";
 export function beginWork(
   current: Fiber | null,
   workInProgress: Fiber
@@ -13,6 +21,12 @@ export function beginWork(
       return updateHostComponent(current, workInProgress);
     case HostText:
       return updateHostText(current, workInProgress);
+    case Fragment:
+      return updateFragment(current, workInProgress);
+    case ClassComponent:
+      return updateClassComponent(current, workInProgress);
+    case FunctionComponent:
+      return updateFunctionComponent(current, workInProgress);
   }
   throw new Error(
     `Unknown unit of work tag (${workInProgress.tag}). This error is likely caused by a bug in ` +
@@ -55,6 +69,37 @@ function updateHostComponent(
 function updateHostText(current: Fiber | null, workInProgress: Fiber): Fiber {
   return null;
 }
+// fragment
+function updateFragment(current: Fiber | null, workInProgress: Fiber): Fiber {
+  const nextChildren = workInProgress.pendingProps.children;
+  reconcileChildren(current, workInProgress, nextChildren);
+  return workInProgress.child;
+}
+// 类组件
+// 更新自己
+// 协调子节点
+function updateClassComponent(current: Fiber | null, workInProgress: Fiber) {
+  const { type, pendingProps } = workInProgress;
+  const context = type.contextType;
+  const newValue = readContext(context);
+  let instance = workInProgress.stateNode;
+  if (current === null) {
+    instance = new type(pendingProps);
+    workInProgress.stateNode = instance;
+  }
+  instance.context = newValue;
+  const children = instance.render();
+  reconcileChildren(current, workInProgress, children);
+  return workInProgress.child;
+}
+// 函数组件
+function updateFunctionComponent(current: Fiber | null, workInProgress: Fiber) {
+  const { type, pendingProps } = workInProgress;
+  const children = type(pendingProps);
+  reconcileChildren(current, workInProgress, children);
+  return workInProgress.child;
+}
+
 // 协调子节点
 function reconcileChildren(
   current: Fiber | null,
