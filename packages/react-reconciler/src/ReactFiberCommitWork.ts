@@ -26,6 +26,16 @@ function commitReconciliationEffects(finishedWork: Fiber) {
 
     finishedWork.flags &= ~Placement;
   }
+  if (flags & ChildDeletion) {
+    // parentFiber 是 deletions的父dom对应的fiber
+    const parentFiber = isHostParent(finishedWork)
+      ? finishedWork
+      : getHostParentFiber(finishedWork);
+    const parentDOM = parentFiber.stateNode;
+    commitDeletions(finishedWork.deletions!, parentDOM);
+    finishedWork.flags &= ~ChildDeletion;
+    finishedWork.deletions = null;
+  }
 }
 
 function commitPlacement(finishedWork: Fiber) {
@@ -98,6 +108,16 @@ function getHostParentFiber(fiber: Fiber): Fiber {
 // 检查fiber是HostParent
 function isHostParent(fiber: Fiber): boolean {
   return fiber.tag === HostComponent || fiber.tag === HostRoot;
+}
+
+// 根据fiber删除dom节点，父dom、子dom
+function commitDeletions(
+  deletions: Array<Fiber>,
+  parentDOM: Element | Document | DocumentFragment
+) {
+  deletions.forEach((deletion) => {
+    parentDOM.removeChild(getStateNode(deletion));
+  });
 }
 function getStateNode(fiber: Fiber) {
   let node = fiber;

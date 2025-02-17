@@ -10,6 +10,7 @@ import {
 import { mountChildFibers, reconcileChildFibers } from "./ReactChildFiber";
 import { isNum, isStr } from "shared/utils";
 import { readContext } from "./ReactFiberNewContext";
+import { renderWithHooks } from "./ReactFiberHooks";
 export function beginWork(
   current: Fiber | null,
   workInProgress: Fiber
@@ -95,7 +96,7 @@ function updateClassComponent(current: Fiber | null, workInProgress: Fiber) {
 // 函数组件
 function updateFunctionComponent(current: Fiber | null, workInProgress: Fiber) {
   const { type, pendingProps } = workInProgress;
-  const children = type(pendingProps);
+  const children = renderWithHooks(current, workInProgress, type, pendingProps);
   reconcileChildren(current, workInProgress, children);
   return workInProgress.child;
 }

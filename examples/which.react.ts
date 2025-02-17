@@ -1,2 +1,2 @@
 export * as ReactDOM from "../packages/react-dom/client";
-export { Component } from "../packages/react";
+export { Component, useReducer, useState } from "../packages/react";

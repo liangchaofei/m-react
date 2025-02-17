@@ -55,7 +55,14 @@ importers:
         specifier: ^6.0.1
         version: 6.0.3
 
-  packages/react: {}
+  packages/react:
+    dependencies:
+      react-reconciler:
+        specifier: workspace:*
+        version: link:../react-reconciler
+      shared:
+        specifier: workspace:*
+        version: link:../shared
 
   packages/react-dom:
     dependencies:

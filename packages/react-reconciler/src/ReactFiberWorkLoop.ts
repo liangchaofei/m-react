@@ -22,12 +22,20 @@ let executionContext: ExecutionContext = NoContext;
 let workInProgress: Fiber | null = null;
 let workInProgressRoot: FiberRoot | null = null;
 
-export function scheduleUpdateOnFiber(root: FiberRoot, fiber: Fiber) {
+export function scheduleUpdateOnFiber(
+  root: FiberRoot,
+  fiber: Fiber,
+  isSync?: boolean
+) {
   workInProgressRoot = root;
   workInProgress = fiber;
 
   // 开始调度更新
-  ensureRootIsScheduled(root);
+  if (isSync) {
+    queueMicrotask(() => performConcurrentWorkOnRoot(root));
+  } else {
+    ensureRootIsScheduled(root);
+  }
 }
 
 export function performConcurrentWorkOnRoot(root: FiberRoot) {
@@ -92,6 +100,8 @@ function performUnitOfWork(unitOfWork: Fiber) {
   const current = unitOfWork.alternate;
   // 1. beginWork
   let next = beginWork(current, unitOfWork);
+  // 把pendingProps更新到memoizedProps
+  unitOfWork.memoizedProps = unitOfWork.pendingProps;
   // 2. completeWork
   if (next === null) {
     // 没有产生新的work

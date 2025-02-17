@@ -23,12 +23,19 @@ export function completeWork(
       // 原生标签,type是标签名
       const { type } = workInProgress;
       if (current !== null && workInProgress.stateNode !== null) {
-        // updateHostComponent(current, workInProgress, type, newProps);
+        console.log(
+          "updateHostComponent",
+          current,
+          workInProgress,
+          type,
+          newProps
+        );
+        updateHostComponent(current, workInProgress, type, newProps);
       } else {
         // 1. 创建真实DOM
         const instance = document.createElement(type);
         // 2. 初始化DOM属性
-        finalizeInitialChildren(instance, workInProgress.pendingProps);
+        finalizeInitialChildren(instance, null, newProps);
         // 3. 把子dom挂载到父dom上
         appendAllChildren(instance, workInProgress);
         workInProgress.stateNode = instance;
@@ -48,18 +55,64 @@ export function completeWork(
       "React. Please file an issue."
   );
 }
+
+function updateHostComponent(
+  current: Fiber | null,
+  workInProgress: Fiber,
+  type: string,
+  newProps: any
+) {
+  if (current?.memoizedProps === newProps) {
+    console.log("updateHostComponent return");
+    return;
+  }
+
+  finalizeInitialChildren(
+    workInProgress.stateNode as Element,
+    current?.memoizedProps,
+    newProps
+  );
+}
 // 初始化、更新属性
 
-function finalizeInitialChildren(domElement: Element, props: any) {
-  for (const propKey in props) {
-    const nextProp = props[propKey];
+function finalizeInitialChildren(
+  domElement: Element,
+  prevProps: any,
+  nextProps: any
+) {
+  for (const propKey in prevProps) {
+    const prevProp = prevProps[propKey];
+    if (propKey === "children") {
+      if (isStr(prevProp) || isNum(prevProp)) {
+        domElement.textContent = "";
+      }
+    } else {
+      // 设置属性
+      if (propKey === "onClick") {
+        console.log("remove event listener", prevProp);
+        domElement.removeEventListener("click", prevProp);
+      } else {
+        if (!(prevProp in nextProps)) {
+          (domElement as any)[propKey] = "";
+        }
+      }
+    }
+  }
+
+  for (const propKey in nextProps) {
+    const nextProp = nextProps[propKey];
     if (propKey === "children") {
       if (isStr(nextProp) || isNum(nextProp)) {
         domElement.textContent = nextProp.toString();
       }
     } else {
       // 设置属性
-      domElement.setAttribute(propKey, nextProp);
+      if (propKey === "onClick") {
+        console.log("add event listener", nextProp);
+        domElement.addEventListener("click", nextProp);
+      } else {
+        domElement.setAttribute(propKey, nextProp);
+      }
     }
   }
 }
